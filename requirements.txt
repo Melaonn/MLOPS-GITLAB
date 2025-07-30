@@ -5,3 +5,6 @@ seaborn
 flask
 joblib
 matplotlib
+setuptools
+mlflow
+kfp
