@@ -1,1 +1,3 @@
 venv/
+MLOPS_GITLAB.egg-info/
+logs/
