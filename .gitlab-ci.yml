@@ -1,0 +1,49 @@
+image: docker:latest
+
+stages:
+  - checkout
+  - build
+  - deploy
+
+variables:
+  PROJECT_ID: "causal-galaxy-464606-u7"
+  REGION: "us-central1"
+  REPO: "my-repo"
+  REGISTRY: "us-central1-docker.pkg.dev"
+  CLUSTER: "my-cluster"
+
+checkout_code:
+  stage: checkout
+  script:
+    - echo "Code Checked out.."
+
+build_docker_image:
+  stage: build
+  services:
+    - name: docker:dind
+      command: ["--tls=false"]
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+  before_script:
+    # Install gcloud in docker image
+    - apk add --no-cache curl python3 py3-pip bash
+    - curl https://sdk.cloud.google.com | bash
+    - export PATH="$PATH:/root/google-cloud-sdk/bin"
+    - echo "$GCP_SA_KEY" | base64 -d > key.json
+    - gcloud auth activate-service-account --key-file=key.json
+    - gcloud auth configure-docker $REGISTRY
+  script:
+    - docker build -t $REGISTRY/$PROJECT_ID/$REPO/mlops-app:latest .
+    - docker push $REGISTRY/$PROJECT_ID/$REPO/mlops-app:latest
+
+deploy_to_gke:
+  stage: deploy
+  image: google/cloud-sdk:latest
+  before_script:
+    - echo "$GCP_SA_KEY" | base64 -d > key.json
+    - gcloud auth activate-service-account --key-file=key.json
+    - gcloud auth configure-docker $REGISTRY
+  script:
+    - gcloud container clusters get-credentials $CLUSTER --region $REGION --project $PROJECT_ID
+    - kubectl apply -f kubernetes-deployment.yaml
